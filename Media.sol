@@ -11,16 +11,21 @@ contract MediaContract {
     // TODO: Add other things
   }
   
-  enum State { Created, Locked, Inactive }
+  enum State { Requested, Confirmed, Inactive }
 
   Media[] private mediaList;
-  mapping (uint => bool) private mediaExists;
-  mapping (address => Media[]) private owns;
+  mapping (uint => Media) private mediaIdMap;
+  mapping (address => uint[]) private owns;
+  mapping (address => (uint => string)) public encryptedMediaMap;
   mapping (address => bool) private isCompany;
   mapping (address => bool) private isCreator;
   mapping (address => mapping (mediaId => State)) private txnState;
   
-  event InitBuy(address buyer, Media media);
+  event InitBuy(address buyer, uint media);
+  event AbortBuy(address buyer, uint media);
+  event ConfirmBuy(address buyer, uint media);
+  event MediaSent(address buyer, uint media);
+  event MediaReceived(address buyer, uint media);
 
   function MediaContract() public {
   }
@@ -29,11 +34,11 @@ contract MediaContract {
     return (isCreator[user].length ==  0);
   }
 
-  function hasSeenMedia(address user, Media testMedia) view private returns (bool) {
-    require(mediaExists(testMedia).length == 1);
-    Media[] userOwned = owns[user];
+  function hasSeenMedia(address user, uint testMediaId) view private returns (bool) {
+    require(mediaIdMap[testMediaId].length == 1);
+    uint[] userOwned = owns[user];
     for(uint i = 0; i < userOwned.length; i++) {
-      if (userOwned[i] == testMedia) {
+      if (userOwned[i] == testMediaId) {
         return true;
       }
     }
@@ -62,7 +67,7 @@ contract MediaContract {
     if (isNewUser(user)) {
       isCreator[user] = true;
     }
-    require(!isCreator[user]);
+    require(isCreator[user]);
     Media newEntry = Media({
       creator: user,
       mediaId: newMediaId,
@@ -70,13 +75,53 @@ contract MediaContract {
       priceCompany; newPriceCompany
     });
     mediaList.push(newEntry);
-    mediaExists[newEntry] = 1;
+    mediaIdMap[newMediaId] = newEntry;
   }
 
-  function initiateBuy(Media media) public {
-    address user = msg.sender;
-    txnState[user][media.mediaId] = State.Created;
-    // TODO: lockin amount
-    emit InitBuy(user, media);
+  function initBuy(uint mediaId) public { // TODO: add public key here
+    require(mediaIdMap[mediaId].length == 1);
+    require(msg.value == 2 * mediaIdMap[mediaId].priceIndividual); // FIXME: priceCompany
+    address buyer = msg.sender;
+    txnState[buyer][mediaId] = State.Requested;
+    emit InitBuy(buyer, mediaId);
+  }
+
+  function confirmBuy(uint mediaId, address buyer) public {
+    require(mediaIdMap[mediaId].length == 1);
+    require(txnState[buyer][media.mediaId] = State.Requested);
+    require(msg.sender == mediaIdMap[mediaId].creator);
+    require(msg.value == 2 * mediaIdMap[mediaId].priceIndividual); // FIXME: priceCompany
+    txnState[buyer][mediaId] = State.Confirmed;
+    emit ConfirmBuy(buyer, mediaId);
+  }
+
+  function abortBuy(uint mediaId) public {
+    require(mediaIdMap[mediaId].length == 1);
+    address buyer = msg.sender;
+    require(txnState[buyer][mediaId] == State.Requested);
+    txnState[buyer][mediaId] = State.Inactive;
+    buyer.transfer(2 * mediaIdMap[media].priceIndividual); // FIXME: priceCompany
+    emit AbortBuy(buyer, mediaId);
+  }
+
+  function sendEncryptedMedia(uint mediaId, address buyer, string encryptedMedia) public {
+    require(mediaIdMap[mediaId].length == 1);
+    require(msg.sender == mediaIdMap[mediaId].creator);
+    require(txnState[buyer][media.mediaId] == State.Confirmed || txnState[buyer][media.mediaId] == State.Sent);
+    txnState[buyer][mediaId] = State.Sent;
+    encryptedMediaMap[buyer][mediaId] = encryptedMedia;
+    emit MediaSent(buyer, mediaId);
+  }
+
+  function ConfirmReceipt(uint mediaId) public {
+    require(mediaIdMap[mediaId].length == 1);
+    address buyer = msg.sender;
+    address seller == mediaIdMap[mediaId].creator;
+    require(txnState[buyer][mediaId] == State.Sent);
+    txnState[buyer][mediaId] = State.Inactive;
+    buyer.transfer(mediaIdMap[mediaId].priceIndividual); // FIXME: priceCompany
+    seller.transfer(3 * mediaIdMap[mediaId].priceIndividual); // FIXME: priceCompany
+    owns[buyer].push(mediaId);
+    emit MediaReceived(buyer, mediaId);
   }
 }
