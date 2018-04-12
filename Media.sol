@@ -41,7 +41,7 @@ contract MediaContract {
     return false;
   }
 
-  function availableMedia() view public returns (uint[]) {
+  function availableMedia() public returns (uint[]) {
     address user = msg.sender;
     if (isNewUser[user]) {
       isCreator[user] = false;
@@ -77,7 +77,7 @@ contract MediaContract {
     mediaList.push(newMediaId);
   }
 
-  function initBuy(uint mediaId) public { // TODO: add public key here
+  function initBuy(uint mediaId) public payable { // TODO: add public key here
     require(mediaIdMap[mediaId].mediaId > 0);
     require(msg.value == 2 * mediaIdMap[mediaId].priceIndividual); // FIXME: priceCompany
     address buyer = msg.sender;
@@ -85,7 +85,7 @@ contract MediaContract {
     emit InitBuy(buyer, mediaId);
   }
 
-  function confirmBuy(uint mediaId, address buyer) public {
+  function confirmBuy(uint mediaId, address buyer) public payable {
     require(mediaIdMap[mediaId].mediaId > 0);
     require(txnState[buyer][mediaId] == State.Requested);
     require(msg.sender == mediaIdMap[mediaId].creator);
